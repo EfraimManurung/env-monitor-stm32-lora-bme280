@@ -1,25 +1,38 @@
 /**
- * Environmental Sensor Node using BME280 and LoRa RFM95
+ * Environmental Sensor Node - STM32 + BME280 + LoRa (RFM95/SX1276)
+ *
  * Author: Efraim Manurung
- * efraim.manurung@gmail.com
+ * Email: efraim.manurung@gmail.com
  *
- * 05-08-2025
- *  - Add NSS control between BME280 and SX1276/RFM95, the pins are PA1 and PA4.
- *  - Use setForcedMode() from BME280 class to control NSS pin.
+ * Description:
+ * This project implements a low-power environmental sensor node using the
+ * BME280 for temperature and humidity measurement, and the SX1276 (RFM95) LoRa
+ * module for wireless data transmission. It is designed for remote weather or
+ * greenhouse monitoring applications.
  *
- * 04-08-2025
- *  - Implement RadioLib SX1276/RFM95, with this Ping-Pong example
- *     https://github.com/jgromes/RadioLib/blob/master/examples/SX127x/SX127x_PingPong/SX127x_PingPong.ino.
+ * Changelog:
  *
- * 02-08-2025
- *  - Run BME280.
- *  - Print the output in the serial.
+ * [2025-08-06]
+ * - Added low-power sleep capability for energy-efficient operation.
+ * - RTC timing correction for Low Power mode from this example and source code
+ * of
+ *    https://gitlab.com/iot-lab-org/minipill-lora-psll-bme280-example-project/-/blob/main/src/main.cpp?ref_type=heads
  *
- * 31-07-2025
- * Tested and running with the custom board:
- *  - We can debug and print the program.
+ * [2025-08-05]
+ * - Implemented NSS pin switching between BME280 and SX1276 (PA1 and PA4).
+ * - Used `setForcedMode()` from BME280 driver to manage shared SPI access.
  *
- *  */
+ * [2025-08-04]
+ * - Integrated RadioLib with SX1276 using the Ping-Pong example:
+ *   https://github.com/jgromes/RadioLib/blob/master/examples/SX127x/SX127x_PingPong/SX127x_PingPong.ino
+ *
+ * [2025-08-02]
+ * - Successfully interfaced BME280 and printed sensor data via Serial.
+ *
+ * [2025-07-31]
+ * - Initial board test with custom STM32 MiniPill LoRa.
+ * - Verified serial output and debugging capability.
+ */
 
 /* MiniPill LoRa v1.x mapping - LoRa module RFM95W and BME280 sensor
 
@@ -51,6 +64,10 @@ Source: https://www.iot-lab.org/blog/370/
 // include the library for RadioLib
 #include <RadioLib.h>
 
+#ifdef USE_LOW_POWER
+#include "STM32LowPower.h"
+#endif
+
 /* SX1278/RFM95 in the MiniPill LoRa has the following connections: */
 #define NSS_RADIO PA4
 #define DIO0 PA10
@@ -59,16 +76,12 @@ Source: https://www.iot-lab.org/blog/370/
 
 SX1276 lora_rfm95 = new Module(NSS_RADIO, DIO0, RST, DIO1);
 
-/* uncomment for debugging main */
 #ifdef DEBUG_MAIN
-// for debugging redirect to hardware Serial2
-// Tx on PA2
-#define DEBUG_INIT(...)                                                        \
-  HardwareSerial Serial2(USART2) // or HardWareSerial Serial2(PA3, PA2);
-#define DEBUG_BEGIN(...) Serial2.begin(9600)
+// Redirect debug output to Serial2 (Tx on PA2)
+HardwareSerial Serial2(USART2); // or HardwareSerial Serial2(PA3, PA2)
+#define DEBUG_BEGIN(...) Serial2.begin(__VA_ARGS__)
 #define DEBUG_PRINT(...) Serial2.print(__VA_ARGS__)
 #define DEBUG_PRINTLN(...) Serial2.println(__VA_ARGS__)
-DEBUG_INIT();
 #else
 #define DEBUG_BEGIN(...)
 #define DEBUG_PRINT(...)
@@ -78,8 +91,19 @@ DEBUG_INIT();
 // include for internal voltage reference
 #include "STM32IntRef.h"
 
+#ifdef USE_LOW_POWER_CAL
+#include "STM32LowPowerCal.h"
+#endif
+
 /* A BME280 object using SPI, chip select pin PA1 */
 BME280 bme(SPI, NSS_BME);
+
+// Sleep this many microseconds. Notice that the sending and waiting for
+// downlink will extend the time between send packets. You have to extract this
+// time
+#define SLEEP_INTERVAL 10000
+
+const double calTimeDivider = 7980.0;
 
 bool initializeBME280() {
 
@@ -98,13 +122,28 @@ bool initializeBME280() {
 
 void setup() {
   /* Setup serial debug */
-  DEBUG_BEGIN();
+  DEBUG_BEGIN(9600);
 
   pinMode(NSS_RADIO, OUTPUT);
   digitalWrite(NSS_RADIO, HIGH);
 
   /* Time for serial settings */
   delay(1000);
+
+#ifdef USE_LOW_POWER_CAL
+  /************************************************
+   * get TimeCorrection number for RTC times
+   ************************************************/
+  // wait 8 seconds to upload new code and
+  // calibrate the RTC times with the HSI internal clock
+  // time calibration on device with correct timing (ideal 8000.00)
+  // incease this time to shorten time between send and receive
+  LowPowerCal.setRTCCalibrationTime(calTimeDivider);
+  // callibrate for 8 seconds
+  LowPowerCal.calibrateRTC();
+  DEBUG_PRINT("RTC Time Correction: ");
+  DEBUG_PRINTLN(LowPowerCal.getRTCTimeCorrection(), 5);
+#endif
 
 /* Begin communication with BME280 and set to default sampling, iirc, and
  * standby settings */
@@ -138,6 +177,11 @@ void setup() {
       ; // Halt
   }
   digitalWrite(NSS_RADIO, HIGH); // Disable RFM95
+
+// Configure low power
+#ifdef USE_LOW_POWER
+  LowPower.begin();
+#endif
 }
 
 void loop() {
@@ -202,5 +246,9 @@ void loop() {
   }
 
   /* so we can read the values more easy */
-  delay(1000);
+#ifdef USE_LOW_POWER
+  LowPower.deepSleep(SLEEP_INTERVAL);
+#else
+  delay(SLEEP_INTERVAL);
+#endif
 }
