@@ -18,6 +18,7 @@ A low-power environmental sensor node built with an STM32-based MiniPill LoRa bo
 ## 🛠 Hardware
 
 - **Board**: [MiniPill LoRa STM32 Board](https://www.iot-lab.org/blog/370/)  
+- **MiniPill_LoRa_Board**: [Boards and Variants](https://gitlab.com/iot-lab-org/minipill_lora_board)
 - **Sensor**: BME280 (temperature & humidity)  
 - **Radio**: LoRa RFM95/SX1276 via RadioLib  
 
