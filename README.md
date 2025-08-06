@@ -7,13 +7,15 @@ Generated with ChatGPT with guidance from the author.
 
 A low-power environmental sensor node built with an STM32-based MiniPill LoRa board. This node is capable of measuring temperature and humidity using a BME280 sensor and transmitting the data over LoRa, making it ideal for applications such as weather stations, greenhouse monitoring, or other remote sensing deployments.
 
+I refactored to RadioLib and will be implented as an IoT system. I refactored to RadioLib and will be implemented as an IoT system. Further information will be announced. 
+
 ## ✨ Features
 
-- 🧠 Based on STM32 "MiniPill" LoRa board  
-- 🌡️ Measures temperature and humidity with BME280  
-- 📡 LoRa data transmission using RadioLib  
-- 🔋 Designed for low power consumption  
-- 🌿 Suitable for outdoor and greenhouse environments  
+- 🧠 Based on STM32 "MiniPill" LoRa board the work of Leo Korbee ([iot-lab.org](https://www.iot-lab.org/about/))
+- 🌡️ Measures temperature and humidity with BME280. 
+- 📡 LoRa data transmission using RadioLib.  
+- 🔋 Designed for low power consumption.  
+- 🌿 Suitable for outdoor and greenhouse environments.  
 
 ## 🛠 Hardware
 
@@ -31,6 +33,29 @@ A low-power environmental sensor node built with an STM32-based MiniPill LoRa bo
 ## 🔧 Programming the Board
 
 Refer to the official [MiniPill programming guide](https://www.iot-lab.org/blog/355/) for flashing firmware and setting up your environment.
+
+## 👣 How to Flash It
+
+This project supports two modes: **transmit** and **receive**, each with its own entry point:
+
+- `main_transmit.cpp` – for sending sensor data via LoRa
+- `main_receive.cpp` – for receiving data via LoRa
+
+You can flash either mode using PlatformIO from the terminal.
+
+### 🔧 Transmit Mode
+
+```bash
+# flash transmit
+pio run -e transmit            # Build only
+pio run -e transmit -t upload  # Build and upload to the board
+
+# flash receive
+pio run -e receive             # Build only
+pio run -e receive -t upload   # Build and upload to the board
+
+
+```
 
 ## 🚀 Getting Started
 
