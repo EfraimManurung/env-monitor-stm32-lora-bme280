@@ -12,6 +12,10 @@
  *
  * Changelog:
  *
+ * [2025-08-08]
+ * - Implemented SX127x_Transmit_Interrupt.ino from the RadioLib library, as we
+ * have to avoid blocking transmit.
+ *
  * [2025-08-06]
  * - Added low-power sleep capability for energy-efficient operation.
  * - RTC timing correction for Low Power mode from this example and source code
@@ -37,6 +41,9 @@
 /* main header file for definitions and etc */
 #include "main.h"
 
+// include for internal voltage reference
+#include "STM32IntRef.h"
+
 /* include for BME280 library */
 #include "BME280.h"
 
@@ -44,6 +51,17 @@
 
 /* A BME280 object using SPI, chip select pin PA1 */
 BME280 bme(SPI, NSS_BME);
+
+// save transmission state between loops
+int transmission_state = RADIOLIB_ERR_NONE;
+
+// flag to indicate that a packet was sent
+volatile bool transmitted_flag = true;
+
+void set_flag(void) {
+  // we sent a packet, set the flag
+  transmitted_flag = true;
+}
 
 bool initializeBME280() {
 
@@ -102,7 +120,7 @@ void setup() {
 #endif
   digitalWrite(NSS_RADIO, LOW); // Enable RFM95
   int state =
-      lora_rfm95.begin(915.0, 125.0, 9, 7, RADIOLIB_SX127X_SYNC_WORD, 17, 8, 0);
+      radio.begin(915.0, 125.0, 9, 7, RADIOLIB_SX127X_SYNC_WORD, 17, 8, 0);
   if (state == RADIOLIB_ERR_NONE) {
 #ifdef DEBUG_MAIN
     DEBUG_PRINTLN("[RFM95/SX1276] Initialized");
@@ -113,9 +131,15 @@ void setup() {
     DEBUG_PRINT("[RFM95/SX1276] failed, code ");
     DEBUG_PRINTLN(state);
 #endif
-    while (true)
-      ; // Halt
+    while (true) {
+      delay(10);
+    }
   }
+
+  // set the function that will be called
+  // when packet transmission is finished
+  radio.setPacketSentAction(set_flag);
+
   digitalWrite(NSS_RADIO, HIGH); // Disable RFM95
 
 // Configure low power
@@ -125,70 +149,87 @@ void setup() {
 }
 
 void loop() {
-  // Prepare upstream data transmission at the next possible time.
-  // read vcc and add to bytebuffer
-  int32_t vcc = IntRef.readVref();
 
-  // reading data from BME sensor
-  digitalWrite(NSS_RADIO, HIGH);
-  bme.readSensor();
-  float tempFloat = bme.getTemperature_C();
-  float humFloat = bme.getHumidity_RH();
-  float pressFloat = bme.getPressure_Pa();
+  // check if the previous transmission finished
+  if (transmitted_flag) {
 
-  // from float to uint16_t
-  uint16_t tempInt = 100 * tempFloat;
-  uint16_t humInt = 100 * humFloat;
-  // pressure is already given in 100 x mBar = hPa
-  uint16_t pressInt = pressFloat / 10;
+    // reset flag
+    transmitted_flag = false;
 
-#ifdef DEBUG_MAIN
-  DEBUG_PRINT("Temperature: ");
-  DEBUG_PRINTLN(tempInt);
-  DEBUG_PRINT("Humidity: ");
-  DEBUG_PRINTLN(humInt);
-  DEBUG_PRINT("Pressure: ");
-  DEBUG_PRINTLN(pressInt);
-#endif
+    if (transmission_state == RADIOLIB_ERR_NONE) {
+      // packet was successfully sent
+      DEBUG_PRINTLN("PACKET SUCCESSFULLY TRANSMITTED!");
 
-  // set forced mode to be shure it will use minimal power and send it to sleep
-  // bme.setForcedMode(); // moved in the setup
-  bme.goToSleep();
+      // NOTE: when using interrupt-driven transmit method,
+      //       it is not possible to automatically measure
+      //       transmission data rate using getDataRate()
 
-  String clientId = "NS001";
-  // String str = String(t) + "," + String(h) + "," + String(p) + "," +
-  // String(a);
-  String str = String("[{\"h\":") + humInt + ",\"t\":" + tempInt +
-               ",\"p\":" + pressInt + ",\"vcc\":" + vcc + "},";
-  str += String("{\"node\":\"") + clientId + "}]";
+    } else {
+      DEBUG_PRINT(F("failed, code "));
+      DEBUG_PRINTLN(transmission_state);
+    }
 
-#ifdef DEBUG_MAIN
-  DEBUG_PRINT("JSON PAYLOAD: ");
-  DEBUG_PRINTLN(str);
-#endif
+    // clean up after transmission is finished
+    // this will ensure transmitter is disabled,
+    // RF switch is powered down etc.
+    radio.finishTransmit();
 
-  digitalWrite(NSS_RADIO, LOW);
-  int state = lora_rfm95.transmit(str.c_str());
-  digitalWrite(NSS_RADIO, HIGH);
-
-  if (state == RADIOLIB_ERR_NONE) {
-    // the packet was successfully transmitted
-
-#ifdef DEBUG_MAIN
-    DEBUG_PRINTLN("PACKET SUCCESSFULLY TRANSMITTED!");
-#endif
-  } else if (state == RADIOLIB_ERR_PACKET_TOO_LONG) {
-    // the supplied packet was longer than 256 bytes
-  } else if (state == RADIOLIB_ERR_TX_TIMEOUT) {
-    // timeout occurred while transmitting packet
-  } else {
-    // some other error occurred
-  }
-
-  /* so we can read the values more easy */
+    // wait before transmitting again
 #ifdef USE_LOW_POWER
-  LowPower.deepSleep(SLEEP_INTERVAL);
+    LowPower.deepSleep(SLEEP_INTERVAL);
 #else
-  delay(SLEEP_INTERVAL);
+    delay(SLEEP_INTERVAL);
 #endif
+
+    // send another one
+    DEBUG_PRINTLN(F("[SX1278] Sending another packet ... "));
+
+    // Prepare upstream data transmission at the next possible time.
+    // read vcc and add to bytebuffer
+    int32_t vcc = IntRef.readVref();
+
+    // reading data from BME sensor
+    digitalWrite(NSS_RADIO, HIGH);
+    bme.readSensor();
+    float tempFloat = bme.getTemperature_C();
+    float humFloat = bme.getHumidity_RH();
+    float pressFloat = bme.getPressure_Pa();
+
+    // from float to uint16_t
+    uint16_t tempInt = 100 * tempFloat;
+    uint16_t humInt = 100 * humFloat;
+    // pressure is already given in 100 x mBar = hPa
+    uint16_t pressInt = pressFloat / 10;
+
+    /* uncomment to debug */
+    // #ifdef DEBUG_MAIN
+    //     DEBUG_PRINT("Temperature: ");
+    //     DEBUG_PRINTLN(tempInt);
+    //     DEBUG_PRINT("Humidity: ");
+    //     DEBUG_PRINTLN(humInt);
+    //     DEBUG_PRINT("Pressure: ");
+    //     DEBUG_PRINTLN(pressInt);
+    // #endif
+
+    // set forced mode to be shure it will use minimal power and send it to
+    // sleep bme.setForcedMode(); // moved in the setup
+    bme.goToSleep();
+
+    String clientId = "NS001";
+    // String str = String(t) + "," + String(h) + "," + String(p) + "," +
+    // String(a);
+    String str = String("[{\"h\":") + humInt + ",\"t\":" + tempInt +
+                 ",\"p\":" + pressInt + ",\"vcc\":" + vcc + "},";
+    str += String("{\"node\":\"") + clientId + "}]";
+
+#ifdef DEBUG_MAIN
+    DEBUG_PRINT("JSON PAYLOAD: ");
+    DEBUG_PRINTLN(str);
+#endif
+
+    digitalWrite(NSS_RADIO, LOW);
+    transmission_state = radio.startTransmit(str.c_str());
+    radio.sleep();
+    digitalWrite(NSS_RADIO, HIGH);
+  }
 }

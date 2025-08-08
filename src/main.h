@@ -33,7 +33,7 @@ Source: https://www.iot-lab.org/blog/370/
 #define RST PA9
 #define DIO1 PB4
 
-SX1276 lora_rfm95 = new Module(NSS_RADIO, DIO0, RST, DIO1);
+SX1276 radio = new Module(NSS_RADIO, DIO0, RST, DIO1);
 
 #ifdef DEBUG_MAIN
 // Redirect debug output to Serial2 (Tx on PA2)
@@ -46,9 +46,6 @@ HardwareSerial Serial2(USART2); // or HardwareSerial Serial2(PA3, PA2)
 #define DEBUG_PRINT(...)
 #define DEBUG_PRINTLN(...)
 #endif
-
-// include for internal voltage reference
-#include "STM32IntRef.h"
 
 #ifdef USE_LOW_POWER_CAL
 #include "STM32LowPowerCal.h"

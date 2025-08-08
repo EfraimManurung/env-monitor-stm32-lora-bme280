@@ -6,12 +6,23 @@
  *
  * Changelog:
  *
+ * [2025-08-08]
+ * - Implemented SX127x_Receive_Interrupt.ino from RadioLib library.
+ *
  * [2025-08-06]
  * - First commit to make a program for receiving JSON data from the other node
  */
 
 /* main header file for definitions and etc */
 #include "main.h"
+
+// flag to indicate that a packet was received
+volatile bool received_flag = false;
+
+void set_flag(void) {
+  // we got a packet, set the flag
+  received_flag = true;
+}
 
 void setup() {
   /* Setup serial debug */
@@ -39,11 +50,11 @@ void setup() {
 
   // initialize SX1278 with default settings
 #ifdef DEBUG_MAIN
-  DEBUG_PRINTLN("[RFM95/SX1276] Initializing ... ");
+  DEBUG_PRINTLN(F("[RFM95/SX1276] Initializing ... "));
 #endif
   digitalWrite(NSS_RADIO, LOW); // Enable RFM95
   int state =
-      lora_rfm95.begin(915.0, 125.0, 9, 7, RADIOLIB_SX127X_SYNC_WORD, 17, 8, 0);
+      radio.begin(915.0, 125.0, 9, 7, RADIOLIB_SX127X_SYNC_WORD, 17, 8, 0);
   if (state == RADIOLIB_ERR_NONE) {
 #ifdef DEBUG_MAIN
     DEBUG_PRINTLN("[RFM95/SX1276] Initialized");
@@ -54,9 +65,28 @@ void setup() {
     DEBUG_PRINT("[RFM95/SX1276] failed, code ");
     DEBUG_PRINTLN(state);
 #endif
-    while (true)
-      ; // Halt
+    while (true) {
+      delay(10);
+    }
   }
+
+  // set the function that will be called
+  // when new packet is received
+  radio.setPacketReceivedAction(set_flag);
+
+  // start listening for LoRa packets
+  DEBUG_PRINTLN(F("[SX1278] Starting to listen ... "));
+  state = radio.startReceive();
+  if (state == RADIOLIB_ERR_NONE) {
+    DEBUG_PRINTLN(F("success!"));
+  } else {
+    DEBUG_PRINT(F("failed, code "));
+    DEBUG_PRINTLN(state);
+    while (true) {
+      delay(10);
+    }
+  }
+
   digitalWrite(NSS_RADIO, HIGH); // Disable RFM95
 
 // Configure low power
@@ -66,66 +96,63 @@ void setup() {
 }
 
 void loop() {
-  // Prepare upstream data transmission at the next possible time.
-  // read vcc and add to bytebuffer
-  int32_t vcc = IntRef.readVref();
+  // check if the flag is set
+  if (received_flag) {
+
+    // reset flag
+    received_flag = false;
 
 #ifdef DEBUG_MAIN
-  DEBUG_PRINTLN("[RFM95/SX1276] Waiting for incoming transmission ... ");
+    DEBUG_PRINTLN("[RFM95/SX1276] Waiting for incoming transmission ... ");
 #endif
 
-  // you can receive data as an Arduino String
-  // NOTE: receive() is a blocking method!
-  //       See example ReceiveInterrupt for details
-  //       on non-blocking reception method.
-  String str;
-  digitalWrite(NSS_RADIO, LOW);
-  int state = lora_rfm95.receive(str);
-  digitalWrite(NSS_RADIO, HIGH);
+    // you can receive data as an Arduino String
+    // NOTE: receive() is a blocking method!
+    //       See example ReceiveInterrupt for details
+    //       on non-blocking reception method.
+    String str;
+    digitalWrite(NSS_RADIO, LOW);
+    int state = radio.readData(str);
+    digitalWrite(NSS_RADIO, HIGH);
 
-  if (state == RADIOLIB_ERR_NONE) {
-    // packet was successfully received
-    DEBUG_PRINTLN("success!");
-    // print the data of the packet
-    DEBUG_PRINT("[RFM95/SX1276] Data:\t\t\t");
-    DEBUG_PRINTLN(str);
+    if (state == RADIOLIB_ERR_NONE) {
+      // packet was successfully received
+      DEBUG_PRINTLN("success!");
+      // print the data of the packet
+      DEBUG_PRINT("[RFM95/SX1276] Data:\t\t\t");
+      DEBUG_PRINTLN(str);
 
-    // print the RSSI (Received Signal Strength Indicator)
-    // of the last received packet
-    DEBUG_PRINT("[RFM95/SX1276] RSSI:\t\t\t");
-    DEBUG_PRINT(lora_rfm95.getRSSI());
-    DEBUG_PRINTLN(" dBm");
+      // print the RSSI (Received Signal Strength Indicator)
+      DEBUG_PRINT("[RFM95/SX1276] RSSI:\t\t\t");
+      DEBUG_PRINT(radio.getRSSI());
+      DEBUG_PRINTLN(" dBm");
 
-    // print the SNR (Signal-to-Noise Ratio)
-    // of the last received packet
-    DEBUG_PRINT("[RFM95/SX1276] SNR:\t\t\t");
-    DEBUG_PRINT(lora_rfm95.getSNR());
-    DEBUG_PRINTLN(" dB");
+      // print the SNR (Signal-to-Noise Ratio)
+      DEBUG_PRINT("[RFM95/SX1276] SNR:\t\t\t");
+      DEBUG_PRINT(radio.getSNR());
+      DEBUG_PRINTLN(" dB");
 
-    // print frequency error
-    // of the last received packet
-    DEBUG_PRINT("[RFM95/SX1276] Frequency error:\t");
-    DEBUG_PRINT(lora_rfm95.getFrequencyError());
-    DEBUG_PRINTLN(" Hz");
+      // print frequency error
+      DEBUG_PRINT("[RFM95/SX1276] Frequency error:\t");
+      DEBUG_PRINT(radio.getFrequencyError());
+      DEBUG_PRINTLN(" Hz");
 
-  } else if (state == RADIOLIB_ERR_TX_TIMEOUT) {
-    // timeout occurred while waiting for a packet
-    DEBUG_PRINTLN("timeout!");
+    } else if (state == RADIOLIB_ERR_CRC_MISMATCH) {
+      // packet was received, but is malformed
+      DEBUG_PRINTLN(F("[SX1278] CRC error!"));
 
-  } else if (state == RADIOLIB_ERR_CRC_MISMATCH) {
-    // packet was received, but is malformed
-    DEBUG_PRINTLN("CRC error!");
+    } else if (state == RADIOLIB_ERR_TX_TIMEOUT) {
+      // timeout occurred while waiting for a packet
+      DEBUG_PRINTLN("timeout!");
 
-  } else {
-    // some other error occurred
-    DEBUG_PRINT("failed, code ");
-    DEBUG_PRINTLN(state);
+    } else if (state == RADIOLIB_ERR_CRC_MISMATCH) {
+      // packet was received, but is malformed
+      DEBUG_PRINTLN("CRC error!");
+
+    } else {
+      // some other error occurred
+      DEBUG_PRINT("failed, code ");
+      DEBUG_PRINTLN(state);
+    }
   }
-
-  /* so we can read the values more easy */
-#ifdef USE_LOW_POWER
-  LowPower.deepSleep(SLEEP_INTERVAL);
-#else
-  delay(SLEEP_INTERVAL);
-#endif
 }
