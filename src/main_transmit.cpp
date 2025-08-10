@@ -69,18 +69,23 @@ bool initializeBME280() {
   bme.setForcedMode();
 
   if (bme.begin() < 0) {
+#ifdef DEBUG_MAIN
     DEBUG_PRINTLN(
         "Error communicating with BME280 sensor, please check wiring");
+#endif
     return false;
   }
-
+#ifdef DEBUG_MAIN
   DEBUG_PRINTLN("[BME280] Initialized ");
+#endif
   return true;
 }
 
 void setup() {
   /* Setup serial debug */
+#ifdef DEBUG_MAIN
   DEBUG_BEGIN(9600);
+#endif
 
   pinMode(NSS_RADIO, OUTPUT);
   digitalWrite(NSS_RADIO, HIGH);
@@ -157,16 +162,20 @@ void loop() {
     transmitted_flag = false;
 
     if (transmission_state == RADIOLIB_ERR_NONE) {
-      // packet was successfully sent
+// packet was successfully sent
+#ifdef DEBUG_MAIN
       DEBUG_PRINTLN("PACKET SUCCESSFULLY TRANSMITTED!");
+#endif
 
       // NOTE: when using interrupt-driven transmit method,
       //       it is not possible to automatically measure
       //       transmission data rate using getDataRate()
 
     } else {
+#ifdef DEBUG_MAIN
       DEBUG_PRINT(F("failed, code "));
       DEBUG_PRINTLN(transmission_state);
+#endif
     }
 
     // clean up after transmission is finished
@@ -182,7 +191,9 @@ void loop() {
 #endif
 
     // send another one
+#ifdef DEBUG_MAIN
     DEBUG_PRINTLN(F("[SX1278] Sending another packet ... "));
+#endif
 
     // Prepare upstream data transmission at the next possible time.
     // read vcc and add to bytebuffer
