@@ -12,6 +12,9 @@
  *
  * Changelog:
  *
+ * [2025-09-02]
+ * - Try to reduce FLASH size (please see the main.h)
+ *
  * [2025-08-08]
  * - Implemented SX127x_Transmit_Interrupt.ino from the RadioLib library, as we
  * have to avoid blocking transmit.
@@ -212,15 +215,15 @@ void loop() {
     // pressure is already given in 100 x mBar = hPa
     uint16_t pressInt = pressFloat / 10;
 
-    /* uncomment to debug */
-    // #ifdef DEBUG_MAIN
-    //     DEBUG_PRINT("Temperature: ");
-    //     DEBUG_PRINTLN(tempInt);
-    //     DEBUG_PRINT("Humidity: ");
-    //     DEBUG_PRINTLN(humInt);
-    //     DEBUG_PRINT("Pressure: ");
-    //     DEBUG_PRINTLN(pressInt);
-    // #endif
+/* uncomment to debug */
+#ifdef DEBUG_MAIN
+    DEBUG_PRINT("Temperature: ");
+    DEBUG_PRINTLN(tempInt);
+    DEBUG_PRINT("Humidity: ");
+    DEBUG_PRINTLN(humInt);
+    DEBUG_PRINT("Pressure: ");
+    DEBUG_PRINTLN(pressInt);
+#endif
 
     // set forced mode to be shure it will use minimal power and send it to
     // sleep bme.setForcedMode(); // moved in the setup

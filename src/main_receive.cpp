@@ -63,7 +63,7 @@ void setup() {
 
 #ifdef DEBUG_MAIN
     DEBUG_PRINT("[RFM95/SX1276] failed, code ");
-    DEBUG_PRINTLN(state);
+    DEBUG_PRINT(state);
 #endif
     while (true) {
       delay(10);
@@ -78,7 +78,7 @@ void setup() {
   DEBUG_PRINTLN(F("[SX1278] Starting to listen ... "));
   state = radio.startReceive();
   if (state == RADIOLIB_ERR_NONE) {
-    DEBUG_PRINTLN(F("success!"));
+    DEBUG_PRINT(F("SUCCESS!"));
   } else {
     DEBUG_PRINT(F("failed, code "));
     DEBUG_PRINTLN(state);
@@ -103,7 +103,7 @@ void loop() {
     received_flag = false;
 
 #ifdef DEBUG_MAIN
-    DEBUG_PRINTLN("[RFM95/SX1276] Waiting for incoming transmission ... ");
+    DEBUG_PRINT("[RFM95/SX1276] Waiting for incoming transmission ... ");
 #endif
 
     // you can receive data as an Arduino String
@@ -117,7 +117,7 @@ void loop() {
 
     if (state == RADIOLIB_ERR_NONE) {
       // packet was successfully received
-      DEBUG_PRINTLN("success!");
+      DEBUG_PRINTLN("SUCCESS!");
       // print the data of the packet
       DEBUG_PRINT("[RFM95/SX1276] Data:\t\t\t");
       DEBUG_PRINTLN(str);

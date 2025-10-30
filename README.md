@@ -23,6 +23,7 @@ I refactored to RadioLib and will be implented as an IoT system. I refactored to
 - **MiniPill_LoRa_Board**: [Boards and Variants](https://gitlab.com/iot-lab-org/minipill_lora_board)
 - **Sensor**: BME280 (temperature & humidity)  
 - **Radio**: LoRa RFM95/SX1276 via RadioLib  
+- **Please read the documentation from the docs for the datasheets**
 
 ## 📦 Libraries Used
 
@@ -63,6 +64,21 @@ pio run -e receive -t upload   # Build and upload to the board
 2. Install the required libraries listed above.
 3. Flash the firmware to the MiniPill using STM32CubeProgrammer or PlatformIO.
 4. Power the device and start collecting data.
+
+## 🚀 Results
+
+### Power Consumption Measurements
+
+| Mode | Description | Current (µA) |
+|------|--------------|--------------|
+| Measuring Mode | STM32L051C8T6 + BME280 (temperature and humidity) | **2.7 µA** |
+| Low Power Mode | STM32L051C8T6 (with CR2032, 240 mAh) | **1.7 µA** |
+
+Below are the experimental measurements using a multimeter:
+
+![Power Measurement Results](docs/power-measurements-results.PNG)
+
+These results demonstrate the **ultra-low power performance** of the STM32L051C8T6-based sensor node, making it highly efficient for long-term, battery-powered IoT deployments such as remote environmental monitoring.
 
 ## 📄 License
 
